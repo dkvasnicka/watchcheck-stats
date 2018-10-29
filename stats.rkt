@@ -1,22 +1,30 @@
-#lang rackjure
+#lang racket
 
-(require string-util)
+(require string-util
+         rackjure/conditionals
+         srfi/1
+         math/array)
 
 (define header (read-line))
 
 (define (parse-line l)
   (map
-    (λ (val) (if-let [parsed-num (string->number val)] parsed-num val))
-    (string-split (string-trim l #px"(LOG|WATCH): ") "|")))
-
-(define watches 
-  (for/hasheq ([l (in-lines)] #:break (starts-with? l "LOG"))
-    (match-let ([(list watch-id watch-name ...) (parse-line l)])
-      (values watch-id watch-name))))
+    (λ (val)
+      (if-let [parsed-num (string->number (string-trim val))]
+              parsed-num
+              val))
+    (take (cdr (cdr (string-split l #px"[:|]"))) 6)))
 
 (define measurements
-  (for/fold ([ms (make-immutable-hasheq (map (λ (k) (cons k '())) (hash-keys watches)))])
-            ([l (sequence-map parse-line (in-lines))]) 
-    (hash-update ms (second l) (curry cons l))))
+  (for/fold ([m (hash)])
+            ([l (in-lines)] #:unless (starts-with? l "WATCH"))
+    (let ([row (parse-line l)])
+      (hash-update m (take row 2) (curry cons row) '()))))
 
-measurements
+(hash-ref measurements '(1 0))
+; (define data
+  ; (list*->array
+    ; (map parse-line (drop-while (curryr starts-with? "WATCH") (port->lines)))
+    ; (λ (x) (or (number? x) (string? x)))))
+
+; (array-fold data (λ (a i) (array->vector a)))

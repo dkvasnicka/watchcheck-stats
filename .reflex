@@ -1,0 +1,1 @@
+-g '*.rkt' -- sh -c 'echo "========================================= Running app =====" && racket stats.rkt < watchcheck2-20181020-183500.data'
