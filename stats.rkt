@@ -21,10 +21,28 @@
     (let ([row (parse-line l)])
       (hash-update m (take row 2) (curry cons row) '()))))
 
-(hash-ref measurements '(1 0))
-; (define data
-  ; (list*->array
-    ; (map parse-line (drop-while (curryr starts-with? "WATCH") (port->lines)))
-    ; (λ (x) (or (number? x) (string? x)))))
+(define measurements-as-arrays
+  (for/hash ([(k v) (in-hash measurements)])
+    (values k
+            (list*->array
+              v
+              (λ (x) (or (number? x) (string? x)))))))
 
-; (array-fold data (λ (a i) (array->vector a)))
+(define (timestamps m)
+  (array-lazy
+    (array-slice-ref
+      m
+      (list
+        (:: 0 (vector-ref (array-shape m) 0))
+        '(2 3)))))
+
+(let* ([m (hash-ref measurements-as-arrays '(1 0))]
+       [times (timestamps m)]
+       [minmax-diffs (array- (array-axis-max times 0) (array-axis-min times 0))])
+  (~r
+    (/
+      (*
+        (array-ref (array-axis-fold minmax-diffs 0 -) #[])
+        (/ 86400000 (array-ref minmax-diffs #[1])))
+      1000)
+    #:precision 1))
