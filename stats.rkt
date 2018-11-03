@@ -2,6 +2,7 @@
 
 (require string-util
          rackjure/conditionals
+         math/statistics
          srfi/1
          math/array)
 
@@ -36,13 +37,30 @@
         (:: 0 (vector-ref (array-shape m) 0))
         '(2 3)))))
 
-(let* ([m (hash-ref measurements-as-arrays '(1 0))]
-       [times (timestamps m)]
-       [minmax-diffs (array- (array-axis-max times 0) (array-axis-min times 0))])
-  (~r
-    (/
-      (*
-        (array-ref (array-axis-fold minmax-diffs 0 -) #[])
-        (/ 86400000 (array-ref minmax-diffs #[1])))
-      1000)
-    #:precision 1))
+(define (compute-daily-precision m)
+  (let* ([times (timestamps m)]
+         [minmax-diffs (array- (array-axis-max times 0) (array-axis-min times 0))]
+         [m-weight (array-ref minmax-diffs #[1])])
+    (values
+      (/
+        (*
+          (array-ref (array-axis-fold minmax-diffs 0 -) #[])
+          (/ 86400000 m-weight))
+        1000)
+      m-weight)))
+
+(define weighted-deviations
+  (for/fold ([stats (hash)])
+    ([(k m) (in-hash measurements-as-arrays)]
+      #:unless (<= (vector-ref (array-shape m) 0) 1))
+    (let-values ([(daily-deviation weight) (compute-daily-precision m)])
+      (hash-update stats
+                   (car k)
+                   (match-lambda
+                     [(list devs weights) (list (cons daily-deviation devs)
+                                                (cons weight weights))])
+                   '(() ())))))
+
+(for ([(watch-id wdev) (in-hash weighted-deviations)])
+  (displayln
+    (format "~a: ~a" watch-id (~r (apply mean wdev) #:precision 1))))
