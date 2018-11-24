@@ -2,8 +2,8 @@
 
 (require string-util
          rackjure/conditionals
-         math/statistics
          srfi/1
+         math/statistics
          math/array)
 
 (define header (read-line))
@@ -27,7 +27,7 @@
     (values k
             (list*->array
               v
-              (λ (x) (or (number? x) (string? x)))))))
+              (λ (x) (or (integer? x) (string? x)))))))
 
 (define (timestamps m)
   (array-lazy
@@ -37,23 +37,21 @@
         (:: 0 (vector-ref (array-shape m) 0))
         '(2 3)))))
 
-(define (compute-daily-precision m)
+(define (compute-daily-deviation m)
   (let* ([times (timestamps m)]
          [minmax-diffs (array- (array-axis-max times 0) (array-axis-min times 0))]
          [m-weight (array-ref minmax-diffs #[1])])
     (values
-      (/
-        (*
-          (array-ref (array-axis-fold minmax-diffs 0 -) #[])
-          (/ 86400000 m-weight))
-        1000)
+      (/ (* (array-ref (array-axis-fold minmax-diffs 0 -) #[])
+            (/ 86400000 m-weight))
+         1000)
       m-weight)))
 
 (define weighted-deviations
-  (for/fold ([stats (hash)])
+  (for/fold ([stats (hasheq)])
     ([(k m) (in-hash measurements-as-arrays)]
       #:unless (<= (vector-ref (array-shape m) 0) 1))
-    (let-values ([(daily-deviation weight) (compute-daily-precision m)])
+    (let-values ([(daily-deviation weight) (compute-daily-deviation m)])
       (hash-update stats
                    (car k)
                    (match-lambda
@@ -63,4 +61,4 @@
 
 (for ([(watch-id wdev) (in-hash weighted-deviations)])
   (displayln
-    (format "~a: ~a" watch-id (~r (apply mean wdev) #:precision 1))))
+    (format "~a: ~a s/day" watch-id (~r (apply mean wdev) #:precision 1))))
